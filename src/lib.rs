@@ -2,14 +2,23 @@
 // to compute the value of Euler's totient function.
 
 // Segment size for the segmented sieve.
-//const SEGMENT_SIZE: usize = 1 << 16;
-// TODO: Debugging value
-const SEGMENT_SIZE: usize = 10;
+const SEGMENT_SIZE: usize = 1 << 16;
 
 // Structure containing all the data needed to handle a single prime number during
 // the sieving process
 struct PrimeData {
+	// The value of the prime itself
 	prime: u64,
+
+	// The prime's square (used for power-related calculations)
+	psqr: u64,
+
+	// The offset of the current prime multiple relative to the segment start
+	offset: usize,
+
+	// The first multiple of prime in the
+	// next sieving segment
+	cur_mult: u64,
 }
 
 // Iterator that spits out successive values of phi(n).
@@ -72,8 +81,12 @@ impl PhiIter {
 		// within the same sieving segment
 		for idx in firstprime_idx..self.cur_seg.len() {
 			if self.cur_seg[idx] == 1 {
+				let prime = (idx + self.seg_offset) as u64;
 				self.primes.push(PrimeData {
-					prime: (idx + self.seg_offset) as u64,
+					prime: prime,
+					psqr: prime * prime,
+					offset: idx,
+					cur_mult: prime,
 				});
 
 				let prime_idx = self.primes.len() - 1;
@@ -86,7 +99,33 @@ impl PhiIter {
 	// This performs the sieve for the given PrimeData's prime (as indexed into self.primes),
 	// and updates the prime data for the next sieve segment
 	fn sieve_prime(&mut self, prime_idx: usize) {
-		
+		// Grab a reference to the PrimeData object to prevent repeatedly indexing primes
+		let pdata = &mut self.primes[prime_idx];
+
+		// Iterate through all multiples in the current sieving segment
+		while pdata.offset < self.cur_seg.len() {
+			// Current segment element reference to avoid repeated dereferencing
+			let cur_elem = &mut self.cur_seg[pdata.offset];
+
+			// Compute the effect of this prime on the segment element's totient
+			let mut pk = pdata.psqr;
+			while pdata.cur_mult % pk == 0 {
+				*cur_elem *= pdata.prime;
+				pk *= pdata.prime;
+			}
+
+			*cur_elem *= pdata.prime - 1;
+
+			// Increment the offset to the next multiple
+			pdata.offset += pdata.prime as usize;
+
+			// Also update the multiple value
+			pdata.cur_mult += pdata.prime;
+
+		}
+
+		// Reset the offset for the next segment
+		pdata.offset -= self.cur_seg.len();
 	}
 }
 
