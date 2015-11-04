@@ -2,7 +2,9 @@
 // to compute the value of Euler's totient function.
 
 // Segment size for the segmented sieve.
-const SEGMENT_SIZE: usize = 1 << 16;
+// Some experimentation showed that this size is approximately
+// optimal for my system (i7-4700MQ).
+const SEGMENT_SIZE: usize = 1 << 24;
 
 // Structure containing all the data needed to handle a single prime number during
 // the sieving process
