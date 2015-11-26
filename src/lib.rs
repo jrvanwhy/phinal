@@ -8,7 +8,7 @@
 // 0m56.404s
 
 // Target segment size for the segmented sieve.
-const TGT_SEG_SIZE: u64 = 100_000;
+const TGT_SEG_SIZE: u64 = 10_000;
 
 // "Totient component" -- Prime powers that contribute to totients in the
 // current segment. Contains the relevant multiplier as well as offsetting information.
