@@ -2,7 +2,7 @@
 // to compute the value of Euler's totient function.
 
 // Target segment size for the segmented sieve.
-const TGT_SEG_SIZE: u64 = 1_000_000;
+const TGT_SEG_SIZE: u64 = 100_000;
 
 // Iterator that spits out successive values of phi(n),
 // starting at phi(0) = 0 to make the standard library's
