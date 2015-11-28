@@ -10,8 +10,12 @@
 // Prob 243 before 2^k factor optimizations:
 // 0m21.145s
 
+// Prob 243 after 2*k factor optimizations:
+// 0m21.440s
+
 // Function to compute a multiplicative inverse mod 2^64...
 // num must be odd, or this will give an invalid result.
+#[allow(dead_code)]
 fn mult_inv(num: u64) -> u64 {
 	// Method: By Euler's theorem, a^phi(n) = 1 (mod n),
 	// so a^(phi(n) - 1) = a^{-1} (mod n).
@@ -63,12 +67,25 @@ struct FuturePrimePow {
 	power: u64, // The power.
 }
 
+// Current offset and power for a power of two.
+// Similar to totcomponent, but specific to powers of even primes
+struct TwoPowComp {
+	pk: u64,
+	offset: u64,
+}
+
 // Iterator that spits out successive values of phi(n),
 // starting at phi(0) = 0 to make the standard library's
 // indexing functions work (i.e. PhiIter.new().nth(2) returns phi(2))
 pub struct PhiIter {
 	// Values contributing to this segment's totients
 	tot_comps: Vec<TotComponent>,
+
+	// Powers of two that we need to handle at this stage of the sieve
+	twopows: Vec<TwoPowComp>,
+
+	// The next power of two to process (like future_pows, but for 2^k)
+	next_twopow: u64,
 
 	// Full list of known useful primes.
 	primes: Vec<u32>,
@@ -94,7 +111,9 @@ impl PhiIter {
 	pub fn new() -> Self {
 		PhiIter {
 			tot_comps: Vec::new(),
-			primes: vec![2],
+			twopows: vec![TwoPowComp{pk: 2, offset: 1}],
+			next_twopow: 4,
+			primes: Vec::new(),
 			cur_prime_idx: 0,
 			future_pows: Vec::new(),
 			cur_seg: vec![SegElem{phi: 0, div: 1}, SegElem{phi: 1, div: 1}, SegElem{phi: 1, div: 1}],
@@ -111,11 +130,7 @@ impl PhiIter {
 		// Identify new primes whose square we are passing and add them to the totient
 		// components and future prime powers lists
 		let seg_max_elem = self.seg_offset + self.cur_seg.len() as u64 - 1;
-		loop {
-			if self.cur_prime_idx >= self.primes.len() as u32 {
-				break
-			}
-
+		while self.cur_prime_idx < self.primes.len() as u32 {
 			// Type cast for convenience...
 			let new_prime = self.primes[self.cur_prime_idx as usize] as u64;
 
@@ -170,6 +185,30 @@ impl PhiIter {
 		for elem in self.cur_seg.iter_mut() {
 			elem.phi = 1;
 			elem.div = 1;
+		}
+
+		// Handle the powers of two.
+		// First, add new powers from this segment to the two powers list
+		let max_seg_num = self.seg_offset + self.cur_seg.len() as u64 - 1;
+		while self.next_twopow <= max_seg_num {
+			self.twopows.push(TwoPowComp { pk: self.next_twopow, offset: self.next_twopow - self.seg_offset });
+			self.next_twopow <<= 1;
+		}
+
+		// Second, iterate through the stored powers and apply them to the sieve.
+		for elem in self.twopows.iter_mut() {
+			while elem.offset < self.cur_seg.len() as u64 {
+				let seg_elem = &mut self.cur_seg[elem.offset as usize];
+				if elem.pk > 2 {
+					seg_elem.phi <<= 1;
+				}
+				seg_elem.div <<= 1;
+
+				elem.offset += elem.pk;
+			}
+
+			// Adjust the offset for the next sieving segment
+			elem.offset -= self.cur_seg.len() as u64;
 		}
 
 		// Iterate through each totient component to perform the sieve
