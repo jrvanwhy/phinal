@@ -10,6 +10,29 @@
 // Prob 243 before 2^k factor optimizations:
 // 0m21.145s
 
+// Function to compute a multiplicative inverse mod 2^64...
+// num must be odd, or this will give an invalid result.
+fn mult_inv(num: u64) -> u64 {
+	// Method: By Euler's theorem, a^phi(n) = 1 (mod n),
+	// so a^(phi(n) - 1) = a^{-1} (mod n).
+	//
+	// phi(2^64) = 2^64 - 2^63 = 2^63, so
+	// a^-1 == a^(2^63 - 1) (mod n).
+	//
+	// We use exponentiation by squaring to compute this result
+	(1..62).scan(num, |pow, _| { *pow = *pow * *pow; Some(*pow) }).fold(num, |out, pow| out * pow)
+}
+
+#[test]
+fn three_inv() {
+	assert!(3 * mult_inv(3) == 1)
+}
+
+#[test]
+fn big_inv() {
+	assert!(3798713 * mult_inv(3798713) == 1)
+}
+
 // Target segment size for the segmented sieve.
 const TGT_SEG_SIZE: u64 = 10_000;
 
@@ -244,6 +267,7 @@ fn sum_million() {
 }
 
 #[test]
+#[ignore]
 fn sum_hundred_million() {
 	assert!(PhiIter::new().take(100_000_000 + 1).fold(0, |s, x| s + x) == 3039635516365908);
 }
