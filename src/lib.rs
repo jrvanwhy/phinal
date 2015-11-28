@@ -18,8 +18,7 @@
 
 // Function to compute a multiplicative inverse mod 2^64...
 // num must be odd, or this will give an invalid result.
-#[allow(dead_code)]
-fn mult_inv(num: u64) -> u64 {
+fn odd_mult_inv(num: u64) -> u64 {
 	// Method: By Euler's theorem, a^phi(n) = 1 (mod n),
 	// so a^(phi(n) - 1) = a^{-1} (mod n).
 	//
@@ -32,12 +31,50 @@ fn mult_inv(num: u64) -> u64 {
 
 #[test]
 fn three_inv() {
-	assert!(3 * mult_inv(3) == 1)
+	assert!(3 * odd_mult_inv(3) == 1)
 }
 
 #[test]
 fn big_inv() {
-	assert!(3798713 * mult_inv(3798713) == 1)
+	assert!(3798713 * odd_mult_inv(3798713) == 1)
+}
+
+// Multiplicative inverse of any positive number mod 2^64...
+// works for both odds and evens.
+struct MultInv {
+	odd_inv_comp: u64, // The inverse of the number after removing powers of 2
+	shift_comp: u8, // The amount to shift during the multiplication.
+}
+
+impl MultInv {
+	// Constructor. Requres num != 0
+	pub fn new(num: u64) -> MultInv {
+		let mut out = MultInv { odd_inv_comp: 0, shift_comp: 0 };
+
+		while (num >> (out.shift_comp + 1)) << (out.shift_comp + 1) == num {
+			out.shift_comp += 1;
+		}
+
+		out.odd_inv_comp = odd_mult_inv(num >> out.shift_comp);
+
+		out
+	}
+}
+
+impl std::ops::Mul<u64> for MultInv {
+	type Output = u64;
+
+	fn mul(self, rhs: u64) -> u64 {
+		(rhs >> self.shift_comp) * self.odd_inv_comp
+	}
+}
+
+#[test]
+fn mult_inverses() {
+	assert!(MultInv::new(2) * 2 == 1);
+	assert!(MultInv::new(3) * 3 == 1);
+	assert!(MultInv::new(6) * 6 == 1);
+	assert!(MultInv::new(2346) * 2346 == 1);
 }
 
 // Target segment size for the segmented sieve.
@@ -146,7 +183,7 @@ impl PhiIter {
 
 			// Pre-compute the multiplicative inverse because it's added to both the totient
 			// component and future power struct
-			let prime_inv = mult_inv(new_prime);
+			let prime_inv = odd_mult_inv(new_prime);
 
 			// Generate the new totient component
 			self.tot_comps.push(TotComponent {
