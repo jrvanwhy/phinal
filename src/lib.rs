@@ -7,6 +7,9 @@
 // Prob 243 before division-minimization modifications:
 // 0m56.404s
 
+// Prob 243 before 2^k factor optimizations:
+// 0m21.145s
+
 // Target segment size for the segmented sieve.
 const TGT_SEG_SIZE: u64 = 10_000;
 
@@ -233,4 +236,14 @@ impl Iterator for PhiIter {
 		self.cur_seg_idx += 1;
 		out
 	}
+}
+
+#[test]
+fn sum_million() {
+	assert!(PhiIter::new().take(1_000_000 + 1).fold(0, |s, x| s + x) == 303963552392);
+}
+
+#[test]
+fn sum_hundred_million() {
+	assert!(PhiIter::new().take(100_000_000 + 1).fold(0, |s, x| s + x) == 3039635516365908);
 }
