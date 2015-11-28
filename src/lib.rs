@@ -13,6 +13,9 @@
 // Prob 243 after 2*k factor optimizations:
 // 0m21.440s
 
+// Prob 243 after p^-1 (mod 2^64) optimization:
+// 0m17.328s
+
 // Function to compute a multiplicative inverse mod 2^64...
 // num must be odd, or this will give an invalid result.
 #[allow(dead_code)]
@@ -48,23 +51,24 @@ const TGT_SEG_SIZE: u64 = 10_000;
 // required to compute the offset relative to a segment exceeds the time
 // cost associated with the extra memory use.
 struct TotComponent {
-	phi_multiplier: u32, // The amount the totient is multiplied by
-	div_multiplier: u32, // The amount the known divisor is multiplied by
+	div_multiplier: u64, // The amount the remaining divisor is multiplied by
 	offset: u64,     // Component's offset relative to the current segment
 	step: u64,       // Amount to bump the offset by after applying this component to a number
+	phi_multiplier: u32, // The amount the totient is multiplied by
 }
 
 // Structure containing data for one sieve segment element
 struct SegElem {
 	phi: u64, // The known components of phi(x)
-	div: u64, // The product of the known prime power divisors of phi(x)
+	div: u64, // The product of the unknown prime power divisors of phi(x)
 }
 
 // Structure containing information about a "future" prime power --
 // a power of a prime that we have yet to reach.
 struct FuturePrimePow {
-	prime: u32, // The prime this is a power of
 	power: u64, // The power.
+	inverse: u64, // Multiplicative inverse of the prime.
+	prime: u32, // The prime this is a power of
 }
 
 // Current offset and power for a power of two.
@@ -140,18 +144,23 @@ impl PhiIter {
 				break
 			}
 
+			// Pre-compute the multiplicative inverse because it's added to both the totient
+			// component and future power struct
+			let prime_inv = mult_inv(new_prime);
+
 			// Generate the new totient component
 			self.tot_comps.push(TotComponent {
 				phi_multiplier: new_prime as u32 - 1,
-				div_multiplier: new_prime as u32,
+				div_multiplier: prime_inv,
 				offset: new_prime * new_prime - self.seg_offset,
 				step: new_prime,
 			});
 
 			// Also generate the new future prime power struct for this prime
 			self.future_pows.push(FuturePrimePow {
-				prime: new_prime as u32,
+				inverse: prime_inv,
 				power: new_prime * new_prime,
+				prime: new_prime as u32,
 			});
 
 			self.cur_prime_idx += 1;
@@ -164,7 +173,7 @@ impl PhiIter {
 				// Add this power to the totient components list
 				self.tot_comps.push(TotComponent {
 					phi_multiplier: elem.prime,
-					div_multiplier: elem.prime,
+					div_multiplier: elem.inverse,
 					offset: elem.power - self.seg_offset,
 					step: elem.power,
 				});
@@ -181,10 +190,12 @@ impl PhiIter {
 	// Function that performs the sieve on the given sieve segment.
 	// This will update the totient components for the next segment
 	fn sieve_segment(&mut self) {
-		// Initialize the segment's values to 1s.
+		// Initialize the segment's values
+		let mut cur_num = self.seg_offset;
 		for elem in self.cur_seg.iter_mut() {
 			elem.phi = 1;
-			elem.div = 1;
+			elem.div = cur_num;
+			cur_num += 1;
 		}
 
 		// Handle the powers of two.
@@ -202,7 +213,7 @@ impl PhiIter {
 				if elem.pk > 2 {
 					seg_elem.phi <<= 1;
 				}
-				seg_elem.div <<= 1;
+				seg_elem.div >>= 1;
 
 				elem.offset += elem.pk;
 			}
@@ -229,12 +240,12 @@ impl PhiIter {
 		// Store any newly-encountered primes.
 		let mut cur_num = self.seg_offset;
 		for seg_elem in self.cur_seg.iter_mut() {
-			if seg_elem.div != cur_num {
+			if seg_elem.div != 1 {
 				// cur_num is divisible by a prime that's larger than anything
 				// in tot_comps
 
 				// Check whether this is a new prime
-				if seg_elem.div == 1 && cur_num < std::u32::MAX as u64 {
+				if seg_elem.div == cur_num && cur_num < std::u32::MAX as u64 {
 					// Add the prime to the primes list and compute phi(p)
 					self.primes.push(cur_num as u32);
 
@@ -242,7 +253,7 @@ impl PhiIter {
 				} else {
 					// This isn't new, just multiply by phi(p) to finish the calculation
 					// of phi for this element
-					seg_elem.phi *= cur_num/seg_elem.div - 1;
+					seg_elem.phi *= seg_elem.div - 1;
 				}
 			}
 
